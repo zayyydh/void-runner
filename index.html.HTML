@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="description" content="VOID RUNNER — A horror endless runner. Run. Don't look back.">
+<meta property="og:title" content="VOID RUNNER">
+<meta property="og:description" content="It has always been following. How far can you run?">
+<title>VOID RUNNER</title>
+<style>
+  :root {
+    --red: #cc0000;
+    --red-dim: #880000;
+    --red-dark: #3a0000;
+    --red-glow: rgba(200,0,0,0.18);
+    --black: #000000;
+    --surface: #0a0003;
+    --font: 'Courier New', 'Lucida Console', monospace;
+  }
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--black); font-family: var(--font);
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  /* ── HUD ─────────────────────────────────────────── */
+  #hud {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; color: var(--red);
+  }
+  #hud-top {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 16px 22px 0;
+  }
+  #score-block { display: flex; flex-direction: column; gap: 2px; }
+  #score-label { font-size: 9px; letter-spacing: 4px; opacity: 0.45; text-transform: uppercase; }
+  #score-val { font-size: 28px; font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 10px rgba(200,0,0,0.5); line-height: 1; }
+  #hi-val { font-size: 10px; letter-spacing: 2px; opacity: 0.35; margin-top: 3px; }
+  #right-block { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  #lives-row { font-size: 20px; letter-spacing: 6px; }
+  #speed-row { font-size: 9px; letter-spacing: 3px; opacity: 0.4; text-align: right; }
+  #combo-display {
+    position: absolute; left: 50%; top: 42%; transform: translateX(-50%);
+    font-size: 15px; letter-spacing: 5px; color: var(--red);
+    opacity: 0; text-transform: uppercase; white-space: nowrap;
+    text-shadow: 0 0 12px rgba(200,0,0,0.6); transition: opacity 0.3s;
+  }
+  #whisper-el {
+    position: absolute; pointer-events: none;
+    color: #280000; font-size: 12px; letter-spacing: 4px;
+    opacity: 0; transition: opacity 1.4s; text-transform: uppercase;
+    white-space: nowrap;
+  }
+  #speed-bar-wrap {
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 2px;
+    background: rgba(80,0,0,0.2);
+  }
+  #speed-bar { height: 100%; width: 25%; background: rgba(180,0,0,0.5); transition: width 0.5s; }
+  #heartbeat {
+    position: absolute; bottom: 12px; left: 0; width: 100%; pointer-events: none;
+  }
+  #controls-hint {
+    position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; letter-spacing: 2px; color: #2a0000; white-space: nowrap;
+  }
+  #near-miss-flash {
+    position: absolute; top: 38%; left: 50%; transform: translateX(-50%);
+    font-size: 10px; letter-spacing: 5px; color: var(--red-dim); opacity: 0;
+    transition: opacity 0.15s; white-space: nowrap;
+  }
+
+  /* ── SCREENS ──────────────────────────────────────── */
+  .screen {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.93); color: var(--red);
+    text-align: center; padding: 24px;
+  }
+  .screen.active { display: flex; }
+  .screen h1 {
+    font-size: clamp(28px, 5vw, 52px); letter-spacing: 10px; text-transform: uppercase;
+    text-shadow: 0 0 20px #f00, 0 0 60px #800, 0 0 100px #400;
+    margin-bottom: 6px; animation: titlePulse 3s ease-in-out infinite;
+  }
+  @keyframes titlePulse {
+    0%,100% { text-shadow: 0 0 20px #f00, 0 0 60px #800; }
+    50%      { text-shadow: 0 0 30px #f00, 0 0 80px #900, 0 0 120px #500; }
+  }
+  .tagline { font-size: 11px; color: #600; letter-spacing: 4px; margin-bottom: 36px; opacity: 0.9; }
+  .screen-msg {
+    font-size: 13px; color: #880000; margin: 5px 0; line-height: 1.8;
+    max-width: 460px;
+  }
+  .btn-primary {
+    margin-top: 28px; padding: 14px 44px;
+    background: transparent; border: 1px solid #700; color: var(--red);
+    font-family: var(--font); font-size: 14px; letter-spacing: 5px;
+    cursor: pointer; text-transform: uppercase; transition: all 0.25s;
+    position: relative; overflow: hidden;
+  }
+  .btn-primary::before {
+    content: ''; position: absolute; inset: 0;
+    background: var(--red-glow); opacity: 0; transition: opacity 0.25s;
+  }
+  .btn-primary:hover { border-color: #cc0000; color: #ff2200; }
+  .btn-primary:hover::before { opacity: 1; }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-secondary {
+    margin-top: 12px; padding: 9px 28px;
+    background: transparent; border: 1px solid #400; color: #700;
+    font-family: var(--font); font-size: 11px; letter-spacing: 3px;
+    cursor: pointer; text-transform: uppercase; transition: all 0.2s;
+  }
+  .btn-secondary:hover { border-color: #700; color: #a00; }
+  .final-score { font-size: 48px; color: #ff2200; letter-spacing: 3px; margin: 6px 0; text-shadow: 0 0 16px #f00; line-height: 1; }
+  .final-label { font-size: 9px; color: #500; letter-spacing: 4px; }
+  .record-row { font-size: 10px; color: #400; letter-spacing: 2px; margin-top: 6px; }
+  .death-msg { font-size: 14px; color: #800; margin-top: 20px; max-width: 380px; line-height: 1.7; font-style: italic; }
+  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .key-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px 28px;
+    margin-top: 20px; text-align: left;
+  }
+  .key-row { font-size: 11px; color: #500; letter-spacing: 1px; }
+  .key-row span { color: #900; margin-right: 6px; }
+  #divider { width: 60px; height: 1px; background: #300; margin: 20px auto; }
+
+  /* ── PAUSE SCREEN ────────────────────────────────── */
+  #pause-screen {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.75); color: var(--red); text-align: center;
+  }
+  #pause-screen.active { display: flex; }
+  #pause-screen h2 { font-size: 24px; letter-spacing: 8px; margin-bottom: 10px; }
+  #pause-screen p { font-size: 11px; color: #600; letter-spacing: 3px; }
+
+  /* ── SETTINGS ────────────────────────────────────── */
+  #settings-panel {
+    position: absolute; top: 0; right: -320px; width: 300px; height: 100%;
+    background: rgba(4,0,0,0.97); border-left: 1px solid #300;
+    display: flex; flex-direction: column; padding: 28px 22px;
+    transition: right 0.35s cubic-bezier(.4,0,.2,1); color: var(--red);
+    z-index: 100;
+  }
+  #settings-panel.open { right: 0; }
+  #settings-panel h3 { font-size: 13px; letter-spacing: 4px; margin-bottom: 24px; border-bottom: 1px solid #300; padding-bottom: 14px; }
+  .setting-row { margin-bottom: 20px; }
+  .setting-label { font-size: 10px; letter-spacing: 3px; color: #800; margin-bottom: 8px; }
+  .toggle-row { display: flex; gap: 8px; }
+  .tog-btn {
+    padding: 6px 14px; background: transparent; border: 1px solid #400;
+    color: #600; font-family: var(--font); font-size: 10px; letter-spacing: 2px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .tog-btn.active { border-color: #900; color: var(--red); background: rgba(80,0,0,0.2); }
+  #settings-close {
+    margin-top: auto; padding: 10px; background: transparent; border: 1px solid #400;
+    color: #600; font-family: var(--font); font-size: 10px; letter-spacing: 3px;
+    cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+  }
+  #settings-close:hover { border-color: #800; color: #a00; }
+  #settings-toggle {
+    position: absolute; top: 16px; right: 16px;
+    width: 36px; height: 36px; background: transparent; border: 1px solid #400;
+    color: #600; font-size: 16px; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; pointer-events: all;
+  }
+  #settings-toggle:hover { border-color: #800; color: #a00; }
+</style>
+</head>
+<body>
+
+<canvas id="gc"></canvas>
+
+<!-- HUD (always on top during game) -->
+<div id="hud" style="display:none;">
+  <div id="hud-top">
+    <div id="score-block">
+      <div id="score-label">Distance fled</div>
+      <div id="score-val">0</div>
+      <div id="hi-val">BEST: 0</div>
+    </div>
+    <div id="right-block">
+      <div id="lives-row">♦♦♦</div>
+      <div id="speed-row">SPEED 1.0×</div>
+    </div>
+  </div>
+  <div id="combo-display"></div>
+  <div id="whisper-el"></div>
+  <div id="near-miss-flash">NEAR MISS</div>
+  <canvas id="heartbeat" style="position:absolute;bottom:28px;left:0;width:100%;height:32px;"></canvas>
+  <div id="speed-bar-wrap"><div id="speed-bar"></div></div>
+  <div id="controls-hint">← → LANES &nbsp;|&nbsp; ↑ SPACE JUMP &nbsp;|&nbsp; ↓ SLIDE &nbsp;|&nbsp; P PAUSE &nbsp;|&nbsp; ESC MENU</div>
+</div>
+
+<!-- Start Screen -->
+<div class="screen active" id="start-screen">
+  <h1>VOID RUNNER</h1>
+  <div class="tagline">— IT HAS ALWAYS BEEN FOLLOWING —</div>
+  <p class="screen-msg">Before you were born, it knew your name.</p>
+  <p class="screen-msg">Running will not save you.<br>But stop, and see what happens.</p>
+  <div id="divider"></div>
+  <div class="key-grid">
+    <div class="key-row"><span>← A / → D</span> Change lane</div>
+    <div class="key-row"><span>↑ / SPACE</span> Jump</div>
+    <div class="key-row"><span>↓</span> Slide / Crawl</div>
+    <div class="key-row"><span>P</span> Pause</div>
+    <div class="key-row"><span>ESC</span> Back to menu</div>
+    <div class="key-row"><span>SWIPE</span> Touch controls</div>
+  </div>
+  <div class="btn-row">
+    <button class="btn-primary" onclick="startGame()">BEGIN RUNNING</button>
+    <button class="btn-secondary" id="open-settings-start" onclick="openSettings()">SETTINGS</button>
+  </div>
+</div>
+
+<!-- Game Over Screen -->
+<div class="screen" id="gameover-screen">
+  <h1 id="go-title">CONSUMED</h1>
+  <div class="tagline" id="go-sub">— YOU COULD NOT OUTRUN IT —</div>
+  <div class="final-label">DISTANCE FLED</div>
+  <div class="final-score" id="go-score">0</div>
+  <div class="record-row" id="go-record">RECORD: 0</div>
+  <div class="death-msg" id="go-msg"></div>
+  <div class="btn-row">
+    <button class="btn-primary" onclick="startGame()">RUN AGAIN</button>
+    <button class="btn-secondary" onclick="goToMenu()">MENU</button>
+  </div>
+</div>
+
+<!-- Pause Screen -->
+<div id="pause-screen">
+  <h2>— PAUSED —</h2>
+  <p>PRESS P TO CONTINUE</p>
+  <p style="margin-top:10px;font-size:10px;color:#400;">ESC TO RETURN TO MENU</p>
+</div>
+
+<!-- Settings Panel -->
+<div id="settings-panel">
+  <h3>SETTINGS</h3>
+  <div class="setting-row">
+    <div class="setting-label">DIFFICULTY</div>
+    <div class="toggle-row">
+      <button class="tog-btn active" data-diff="easy"   onclick="setDiff(this,'easy')">EASY</button>
+      <button class="tog-btn"        data-diff="normal" onclick="setDiff(this,'normal')">NORMAL</button>
+      <button class="tog-btn"        data-diff="hard"   onclick="setDiff(this,'hard')">HARD</button>
+    </div>
+  </div>
+  <div class="setting-row">
+    <div class="setting-label">SCREEN SHAKE</div>
+    <div class="toggle-row">
+      <button class="tog-btn active" data-shake="on"  onclick="setShake(this,'on')">ON</button>
+      <button class="tog-btn"        data-shake="off" onclick="setShake(this,'off')">OFF</button>
+    </div>
+  </div>
+  <div class="setting-row">
+    <div class="setting-label">WHISPERS</div>
+    <div class="toggle-row">
+      <button class="tog-btn active" data-whisp="on"  onclick="setWhisp(this,'on')">ON</button>
+      <button class="tog-btn"        data-whisp="off" onclick="setWhisp(this,'off')">OFF</button>
+    </div>
+  </div>
+  <div class="setting-row">
+    <div class="setting-label">SCANLINES</div>
+    <div class="toggle-row">
+      <button class="tog-btn active" data-scan="on"  onclick="setScan(this,'on')">ON</button>
+      <button class="tog-btn"        data-scan="off" onclick="setScan(this,'off')">OFF</button>
+    </div>
+  </div>
+  <div class="setting-row" style="margin-top:auto;">
+    <div class="setting-label">HIGH SCORE</div>
+    <button class="tog-btn" onclick="clearHS()" style="color:#500;border-color:#300;">CLEAR</button>
+  </div>
+  <button id="settings-close" onclick="closeSettings()">CLOSE</button>
+</div>
+
+<!-- Settings toggle button (visible during game) -->
+<button id="settings-toggle" style="display:none;" onclick="openSettings()">&#9776;</button>
+
+<script>
+"use strict";
+// ═══════════════════════════════════════════════════════════
+//  VOID RUNNER — v2.0  |  github.com/yourhandle/void-runner
+// ═══════════════════════════════════════════════════════════
+
+// ── DOM refs ────────────────────────────────────────────────
+const canvas   = document.getElementById('gc');
+const ctx      = canvas.getContext('2d');
+const hbCanvas = document.getElementById('heartbeat');
+const hbCtx    = hbCanvas.getContext('2d');
+const hudEl    = document.getElementById('hud');
+const scoreEl  = document.getElementById('score-val');
+const hiEl     = document.getElementById('hi-val');
+const livesEl  = document.getElementById('lives-row');
+const speedRowEl= document.getElementById('speed-row');
+const speedBarEl= document.getElementById('speed-bar');
+const whisperEl = document.getElementById('whisper-el');
+const comboEl   = document.getElementById('combo-display');
+const nearMissEl= document.getElementById('near-miss-flash');
+const pauseEl   = document.getElementById('pause-screen');
+
+// ── Settings state ──────────────────────────────────────────
+const CFG = {
+  diff:    localStorage.getItem('vr_diff')    || 'easy',
+  shake:   localStorage.getItem('vr_shake')   !== 'off',
+  whisp:   localStorage.getItem('vr_whisp')   !== 'off',
+  scan:    localStorage.getItem('vr_scan')    !== 'off',
+};
+const DIFF_PRESETS = {
+  easy:   { initSpeed: 3.0, accelRate: 180, spawnBase: 100 },
+  normal: { initSpeed: 3.8, accelRate: 150, spawnBase:  80 },
+  hard:   { initSpeed: 5.0, accelRate: 100, spawnBase:  60 },
+};
+function saveCFG() {
+  localStorage.setItem('vr_diff',  CFG.diff);
+  localStorage.setItem('vr_shake', CFG.shake  ? 'on' : 'off');
+  localStorage.setItem('vr_whisp', CFG.whisp  ? 'on' : 'off');
+  localStorage.setItem('vr_scan',  CFG.scan   ? 'on' : 'off');
+}
+function setDiff(el, v)  { CFG.diff  = v;        saveCFG(); document.querySelectorAll('[data-diff]').forEach(b=>b.classList.toggle('active',b.dataset.diff===v)); }
+function setShake(el, v) { CFG.shake = v==='on'; saveCFG(); document.querySelectorAll('[data-shake]').forEach(b=>b.classList.toggle('active',b.dataset.shake===v)); }
+function setWhisp(el, v) { CFG.whisp = v==='on'; saveCFG(); document.querySelectorAll('[data-whisp]').forEach(b=>b.classList.toggle('active',b.dataset.whisp===v)); }
+function setScan(el, v)  { CFG.scan  = v==='on'; saveCFG(); document.querySelectorAll('[data-scan]').forEach(b=>b.classList.toggle('active',b.dataset.scan===v)); }
+function clearHS()       { localStorage.removeItem('vr_hi'); highScore = 0; hiEl.textContent = 'BEST: 0'; }
+function openSettings()  { document.getElementById('settings-panel').classList.add('open'); }
+function closeSettings() { document.getElementById('settings-panel').classList.remove('open'); }
+// Init settings toggles from saved state
+document.querySelectorAll('[data-diff]').forEach(b=>b.classList.toggle('active',b.dataset.diff===CFG.diff));
+document.querySelectorAll('[data-shake]').forEach(b=>b.classList.toggle('active',CFG.shake?(b.dataset.shake==='on'):(b.dataset.shake==='off')));
+document.querySelectorAll('[data-whisp]').forEach(b=>b.classList.toggle('active',CFG.whisp?(b.dataset.whisp==='on'):(b.dataset.whisp==='off')));
+document.querySelectorAll('[data-scan]').forEach(b=>b.classList.toggle('active',CFG.scan?(b.dataset.scan==='on'):(b.dataset.scan==='off')));
+
+// ── Constants ────────────────────────────────────────────────
+const LANE_COUNT = 3;
+const WHISPERS = [
+  "it sees you","run faster","look behind you","you can't escape",
+  "the darkness remembers","stop running","it's already inside","don't breathe",
+  "you were never alone","almost here","it has your smell","it learned your walk",
+  "close your eyes","it misses you","you dropped something","it kept it",
+  "your name tastes sweet","it's patient","it has done this before"
+];
+const DEATH_MSGS = [
+  "It wore your face when it found you.",
+  "It has been collecting you for a long time.",
+  "The last thing you heard was your own heartbeat stopping.",
+  "It smiled. It knew this would happen.",
+  "You never ran fast enough. You never could.",
+  "Some things cannot be left behind.",
+  "It whispered your name at the very end.",
+  "You dropped something. It kept it.",
+  "It will use your memory to find the next one.",
+  "It waited. That's all it ever had to do."
+];
+
+// ── Game state ───────────────────────────────────────────────
+let W, H, running = false, paused = false, gameOver = false;
+let score = 0, highScore = parseInt(localStorage.getItem('vr_hi') || '0', 10);
+let speed, frame = 0;
+let lives = 3, invincibleFrames = 0, flickerFrames = 0;
+let flashAlpha = 0, vigMod = 0, shakeX = 0, shakeY = 0, shakeFrames = 0;
+let bgScroll1 = 0, bgScroll2 = 0, bgScroll3 = 0;
+let lastObsFrame = 0, lastShadowFrame = 0, lastWhisperTime = 0;
+let nearMissTimer = 0, nearMissCount = 0;
+let comboTimer = 0, comboText = '';
+let lanes = [], laneW;
+
+// Player
+let P = { lane: 1, x: 0, y: 0, groundY: 0, w: 30, h: 52, vy: 0, jumping: false, sliding: false, slideFrames: 0 };
+
+// Entity arrays
+let obstacles = [], particles = [], shadows = [], fog = [];
+
+// ── Resize ───────────────────────────────────────────────────
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  hbCanvas.width = W; hbCanvas.height = 32;
+  laneW = W / LANE_COUNT;
+  lanes = [laneW * 0.5, laneW * 1.5, laneW * 2.5];
+  P.groundY = H * 0.63;
+  if (!running) { P.x = lanes[1]; P.y = P.groundY; }
+  fog = []; initFog();
+}
+window.addEventListener('resize', resize);
+
+// ── Fog init ─────────────────────────────────────────────────
+function initFog() {
+  for (let i = 0; i < 55; i++) {
+    fog.push({
+      x: Math.random() * W, y: Math.random() * H,
+      r: 55 + Math.random() * 160,
+      vx: -0.12 - Math.random() * 0.22,
+      alpha: 0.012 + Math.random() * 0.05,
+      drift: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+// ── Shake ────────────────────────────────────────────────────
+function doShake(amt) {
+  if (!CFG.shake) return;
+  shakeFrames = 14; shakeX = (Math.random() - 0.5) * amt; shakeY = (Math.random() - 0.5) * amt;
+}
+
+// ── Whisper ──────────────────────────────────────────────────
+function triggerWhisper() {
+  if (!CFG.whisp || Date.now() - lastWhisperTime < 5000) return;
+  lastWhisperTime = Date.now();
+  whisperEl.textContent = WHISPERS[Math.floor(Math.random() * WHISPERS.length)];
+  whisperEl.style.left   = (12 + Math.random() * 68) + '%';
+  whisperEl.style.top    = (15 + Math.random() * 65) + '%';
+  whisperEl.style.opacity = '1';
+  setTimeout(() => { whisperEl.style.opacity = '0'; }, 2600);
+}
+
+// ── Particles ────────────────────────────────────────────────
+function spawnParticles(x, y, n, col) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, spd = 1.5 + Math.random() * 5;
+    particles.push({ x, y, vx: Math.cos(a)*spd, vy: Math.sin(a)*spd - 2.8, life: 1, col: col || '#990000' });
+  }
+}
+
+// ── Obstacle spawning ─────────────────────────────────────────
+function spawnObstacle() {
+  const types = ['wall','spike','swarm','gap','double','triple'];
+  const weights = [32, 26, 16, 12, 10, 4];
+  let r = Math.random() * 100, c = 0, type = 'wall';
+  for (let i = 0; i < types.length; i++) { c += weights[i]; if (r < c) { type = types[i]; break; } }
+
+  const makeWall = (ln, dy=0) => ({ type:'wall', lane:ln, x:lanes[ln], y:-90+dy, w:laneW*0.56, h:68+Math.random()*22, spd:speed, cr:Math.random()*15|0 });
+  const makeSpike= (ln)       => ({ type:'spike',lane:ln, x:lanes[ln], y:-10,    w:laneW*0.58, h:32,                 spd:speed });
+  const makeSwarm= (ln)       => { const pts=[]; for(let i=0;i<12;i++) pts.push({ox:(Math.random()-.5)*56,oy:(Math.random()-.5)*56,ph:Math.random()*Math.PI*2}); return {type:'swarm',lane:ln,x:lanes[ln],y:-70,w:55,h:55,spd:speed,pts,age:0}; };
+
+  if (type === 'wall')   { const ln = Math.random()*3|0; obstacles.push(makeWall(ln)); }
+  else if (type==='spike')  { const ln = Math.random()*3|0; obstacles.push(makeSpike(ln)); }
+  else if (type==='swarm')  { const ln = Math.random()*3|0; obstacles.push(makeSwarm(ln)); }
+  else if (type==='gap')    { const safe = Math.random()*3|0; for(let i=0;i<3;i++) if(i!==safe) obstacles.push(makeWall(i)); }
+  else if (type==='double') { const a = Math.random()*3|0, b=(a+1+Math.random()*2|0)%3; obstacles.push(makeWall(a)); obstacles.push(makeSpike(b)); }
+  else if (type==='triple') { const safe = Math.random()*3|0; for(let i=0;i<3;i++) if(i!==safe) { Math.random()<0.5 ? obstacles.push(makeWall(i)) : obstacles.push(makeSpike(i)); } }
+}
+
+// ── Shadow entity ─────────────────────────────────────────────
+function spawnShadow() {
+  const tall = Math.random() < 0.28, limbs = Math.random() < 0.55, crawl = Math.random() < 0.18;
+  shadows.push({ x: Math.random()*W, y: H*(crawl ? 0.62 : 0.34), h: 55 + Math.random()*(tall ? 130 : 65),
+    alpha: 0, phase: 'in', timer: 0, limbs, tall, crawl });
+}
+
+// ── Draw: Background ──────────────────────────────────────────
+function drawBG() {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#000000'); g.addColorStop(0.42, '#090003'); g.addColorStop(1, '#170000');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  // Vanishing-point tunnel lines
+  const vpX = W/2, vpY = H*0.28;
+  ctx.strokeStyle = 'rgba(65,0,0,0.13)'; ctx.lineWidth = 0.6;
+  for (let i = 0; i < 18; i++) {
+    ctx.beginPath(); ctx.moveTo(vpX, vpY); ctx.lineTo((i/17)*W, H); ctx.stroke();
+  }
+
+  // Ceiling slab
+  ctx.fillStyle = 'rgba(20,0,0,0.38)'; ctx.fillRect(0, 0, W, H*0.26);
+
+  // Floor + moving tiles
+  const gY = H * 0.67;
+  const fg = ctx.createLinearGradient(0, gY, 0, H);
+  fg.addColorStop(0, 'rgba(45,0,0,0.42)'); fg.addColorStop(1, 'rgba(7,0,0,0.96)');
+  ctx.fillStyle = fg; ctx.fillRect(0, gY, W, H - gY);
+
+  bgScroll1 = (bgScroll1 + speed * 0.52) % 72;
+  ctx.strokeStyle = 'rgba(55,0,0,0.18)'; ctx.lineWidth = 0.5;
+  for (let y = gY + bgScroll1; y < H; y += 72) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  for (let i = 0; i <= LANE_COUNT; i++) { const x = i*laneW; ctx.beginPath(); ctx.moveTo(x, gY); ctx.lineTo(x, H); ctx.stroke(); }
+
+  // Animated drip streaks on walls
+  bgScroll2 = (bgScroll2 + speed * 0.28) % H;
+  ctx.strokeStyle = 'rgba(90,0,0,0.06)'; ctx.lineWidth = 0.8;
+  for (let i = 0; i < 7; i++) {
+    const dx = (i/6)*W; const ph = Math.sin(frame*0.011 + i)*28;
+    ctx.beginPath(); ctx.moveTo(dx, (bgScroll2 - H) % H);
+    ctx.bezierCurveTo(dx+12, H*0.14+ph, dx-10, H*0.32, dx+4, H*0.55); ctx.stroke();
+  }
+
+  // Lane centre tick marks
+  bgScroll3 = (bgScroll3 + speed * 0.42) % 56;
+  ctx.strokeStyle = 'rgba(45,0,0,0.22)'; ctx.lineWidth = 0.5;
+  for (let i = 0; i < LANE_COUNT; i++) {
+    for (let y = gY + bgScroll3; y < H; y += 56) {
+      ctx.beginPath(); ctx.moveTo(lanes[i]-9, y); ctx.lineTo(lanes[i]+9, y); ctx.stroke();
+    }
+  }
+}
+
+// ── Draw: Fog ─────────────────────────────────────────────────
+function drawFog() {
+  fog.forEach(f => {
+    f.x += f.vx + Math.sin(frame*0.005 + f.drift)*0.38;
+    f.y += Math.sin(frame*0.008 + f.drift)*0.28;
+    if (f.x + f.r < 0) f.x = W + f.r;
+    const rg = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
+    rg.addColorStop(0, `rgba(22,0,0,${f.alpha})`); rg.addColorStop(1, 'transparent');
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI*2); ctx.fill();
+  });
+}
+
+// ── Draw: Shadows ─────────────────────────────────────────────
+function drawShadows() {
+  shadows.forEach((s, idx) => {
+    s.timer++;
+    if      (s.phase==='in')   { s.alpha = Math.min(s.alpha+0.022, 0.38); if(s.alpha>=0.38) s.phase='hold'; }
+    else if (s.phase==='hold') { if(s.timer > 90) s.phase='out'; }
+    else                        { s.alpha -= 0.016; }
+    if (s.alpha <= 0) { shadows.splice(idx, 1); return; }
+
+    ctx.save(); ctx.globalAlpha = s.alpha;
+    const bw = s.tall?22:17, bh = s.h*0.5;
+    ctx.fillStyle = '#000';
+    if (s.crawl) {
+      ctx.fillRect(s.x - bw*1.8, s.y, bw*3.6, bw); // crawling blob
+      ctx.beginPath(); ctx.arc(s.x + bw*1.2, s.y - 4, 10, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.fillRect(s.x - bw/2, s.y, bw, bh);
+      ctx.beginPath(); ctx.arc(s.x, s.y - (s.tall?18:11), s.tall?20:13, 0, Math.PI*2); ctx.fill();
+      if (s.limbs) {
+        ctx.strokeStyle = '#000'; ctx.lineWidth = s.tall?8:5;
+        const sw = Math.sin(frame*0.038)*24;
+        ctx.beginPath(); ctx.moveTo(s.x, s.y+bh*0.3); ctx.lineTo(s.x-(s.tall?58:38)+sw, s.y+bh*0.78+28); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(s.x, s.y+bh*0.3); ctx.lineTo(s.x+(s.tall?58:38)-sw, s.y+bh*0.78+28); ctx.stroke();
+      }
+      if (s.tall) {
+        ctx.lineWidth = 6;
+        const lw = Math.sin(frame*0.033)*16;
+        ctx.beginPath(); ctx.moveTo(s.x, s.y+bh*0.72); ctx.lineTo(s.x-24+lw, s.y+bh+32); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(s.x, s.y+bh*0.72); ctx.lineTo(s.x+24-lw, s.y+bh+32); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  });
+}
+
+// ── Draw: Obstacles ───────────────────────────────────────────
+function drawObstacles() {
+  obstacles.forEach(ob => {
+    ob.y += ob.spd;
+    ctx.save();
+
+    if (ob.type === 'wall') {
+      const wg = ctx.createLinearGradient(ob.x - ob.w/2, ob.y, ob.x + ob.w/2, ob.y + ob.h);
+      wg.addColorStop(0, `hsl(${ob.cr},70%,${7+Math.random()*8}%)`);
+      wg.addColorStop(1, '#030000');
+      ctx.fillStyle = wg; ctx.fillRect(ob.x-ob.w/2, ob.y, ob.w, ob.h);
+      ctx.strokeStyle = 'rgba(160,0,0,0.5)'; ctx.lineWidth = 1;
+      ctx.strokeRect(ob.x-ob.w/2, ob.y, ob.w, ob.h);
+      // Crack lines
+      ctx.strokeStyle = 'rgba(120,0,0,0.18)'; ctx.lineWidth = 0.5;
+      for (let k = 0; k < 4; k++) {
+        ctx.beginPath(); ctx.moveTo(ob.x-ob.w/2+Math.random()*ob.w, ob.y);
+        ctx.lineTo(ob.x-ob.w/2+Math.random()*ob.w, ob.y+ob.h); ctx.stroke();
+      }
+      // Pulsing eyes
+      const ep = 0.28 + Math.sin(frame*0.09)*0.22;
+      ctx.fillStyle = `rgba(255,0,0,${ep})`;
+      ctx.beginPath(); ctx.arc(ob.x-8, ob.y+ob.h*0.34, 3.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ob.x+8, ob.y+ob.h*0.34, 3.5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = `rgba(255,0,0,${ep*0.25})`;
+      ctx.beginPath(); ctx.ellipse(ob.x-8, ob.y+ob.h*0.34, 10, 7, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(ob.x+8, ob.y+ob.h*0.34, 10, 7, 0, 0, Math.PI*2); ctx.fill();
+
+    } else if (ob.type === 'spike') {
+      const top = P.groundY - 36;
+      ctx.fillStyle = '#150000'; ctx.fillRect(ob.x-ob.w/2, top, ob.w, 36);
+      ctx.fillStyle = '#270000';
+      const count = 7;
+      for (let k = 0; k < count; k++) {
+        const sx = ob.x - ob.w/2 + (k/(count-1))*ob.w;
+        ctx.beginPath(); ctx.moveTo(sx-ob.w/(count*2), top);
+        ctx.lineTo(sx, top - 24 - Math.sin(k*1.1)*8); ctx.lineTo(sx+ob.w/(count*2), top); ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(200,0,0,0.4)'; ctx.lineWidth = 0.5; ctx.strokeRect(ob.x-ob.w/2, top, ob.w, 36);
+
+    } else if (ob.type === 'swarm') {
+      ob.age++;
+      ob.pts.forEach(s => {
+        const sx = ob.x + s.ox + Math.sin(ob.age*0.09+s.ph)*20;
+        const sy = ob.y + s.oy + Math.cos(ob.age*0.07+s.ph)*14;
+        const sz = 3.5 + Math.sin(ob.age*0.14+s.ph)*2;
+        ctx.fillStyle = `rgba(210,0,0,${0.28+Math.sin(ob.age*0.18+s.ph)*0.22})`;
+        ctx.beginPath(); ctx.arc(sx, sy, sz, 0, Math.PI*2); ctx.fill();
+      });
+    }
+    ctx.restore();
+  });
+}
+
+// ── Draw: Player ──────────────────────────────────────────────
+function drawPlayer() {
+  if (flickerFrames > 0 && frame % 2 === 0) { flickerFrames--; return; }
+  const px = P.x, py = P.y;
+  const inv = invincibleFrames > 0;
+
+  ctx.save();
+  ctx.globalAlpha = inv ? (0.38 + Math.sin(frame*0.35)*0.38) : 1;
+
+  const sh = P.sliding ? 0.44 : 1, soy = P.sliding ? P.h * 0.56 : 0;
+  const jst = P.jumping ? 1.13 : 1;
+  const bh = P.h * sh * jst, bw = P.w * (P.sliding ? 1.38 : 1);
+
+  // Ground shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath(); ctx.ellipse(px, P.groundY+10, bw*0.5, 8*sh, 0, 0, Math.PI*2); ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#140003'; ctx.fillRect(px-bw/2, py-bh+soy, bw, bh);
+
+  // Eyes
+  if (!P.sliding) {
+    const ep = 0.42 + Math.sin(frame*0.07)*0.3;
+    ctx.fillStyle = `rgba(255,0,0,${ep})`;
+    ctx.beginPath(); ctx.arc(px-7, py-bh*0.83, 3.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px+7, py-bh*0.83, 3.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = `rgba(255,0,0,${ep*0.22})`;
+    ctx.beginPath(); ctx.ellipse(px-7, py-bh*0.83, 9, 6, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(px+7, py-bh*0.83, 9, 6, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Glitch noise on body
+  if (Math.random() < 0.07) {
+    ctx.fillStyle = 'rgba(200,0,0,0.1)';
+    ctx.fillRect(px-bw/2 + Math.random()*bw*0.5, py-bh+Math.random()*bh, bw*0.55, 1.5);
+  }
+  ctx.restore();
+}
+
+// ── Draw: Particles ───────────────────────────────────────────
+function drawParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life -= 0.03;
+    if (p.life <= 0) { particles.splice(i, 1); continue; }
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.col; ctx.fillRect(p.x-2, p.y-2, 4, 4);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ── Draw: Post-processing ─────────────────────────────────────
+function drawPost() {
+  // Vignette
+  const vig = ctx.createRadialGradient(W/2, H/2, H*0.26, W/2, H/2, H*0.88);
+  vig.addColorStop(0, 'transparent'); vig.addColorStop(1, `rgba(0,0,0,${0.52 + vigMod*0.34})`);
+  ctx.fillStyle = vig; ctx.fillRect(0, 0, W, H);
+
+  // Hit flash
+  if (flashAlpha > 0) {
+    ctx.fillStyle = `rgba(140,0,0,${flashAlpha})`; ctx.fillRect(0, 0, W, H);
+    flashAlpha = Math.max(0, flashAlpha - 0.042);
+  }
+
+  // Scanlines
+  if (CFG.scan) {
+    for (let y = 0; y < H; y += 4) {
+      ctx.fillStyle = 'rgba(0,0,0,0.048)'; ctx.fillRect(0, y, W, 2);
+    }
+  }
+}
+
+// ── Draw: Heartbeat canvas ────────────────────────────────────
+function drawHeartbeat() {
+  hbCtx.clearRect(0, 0, W, 32);
+  if (!running || paused) return;
+  const intensity = 0.22 + nearMissTimer/60*0.65;
+  hbCtx.strokeStyle = `rgba(180,0,0,${intensity})`; hbCtx.lineWidth = 1.3;
+  hbCtx.beginPath();
+  const segs = 80;
+  for (let k = 0; k <= segs; k++) {
+    const lx = (k/segs)*W;
+    let ly = 16 + Math.sin(frame*0.14 + k*0.3)*4.5;
+    if (k % 16 === 8) ly -= 14 * (1 + nearMissTimer/35);
+    k===0 ? hbCtx.moveTo(lx, ly) : hbCtx.lineTo(lx, ly);
+  }
+  hbCtx.stroke();
+}
+
+// ── Collision detection ────────────────────────────────────────
+function checkCollisions() {
+  if (invincibleFrames > 0 || flickerFrames > 0) return;
+  const sh = P.sliding ? 0.44 : 1, soy = P.sliding ? P.h*0.56 : 0;
+  const pT = P.y - P.h*sh + soy, pB = P.y, pL = P.x - P.w*0.44, pR = P.x + P.w*0.44;
+
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const ob = obstacles[i];
+    const laneClose = Math.abs(P.x - ob.x);
+    const halfSum = (P.w + (ob.w || 44)) * 0.5;
+
+    if (laneClose > halfSum * 0.95) {
+      if (laneClose < halfSum * 1.05) { nearMissTimer = Math.min(nearMissTimer + 5, 60); nearMissCount++; if(nearMissCount%3===0) flashNearMiss(); }
+      continue;
+    }
+    let oT, oB, oL, oR;
+    if      (ob.type==='wall')  { oT=ob.y;             oB=ob.y+ob.h;   oL=ob.x-ob.w/2; oR=ob.x+ob.w/2; }
+    else if (ob.type==='spike') { oT=P.groundY-60;     oB=P.groundY;   oL=ob.x-ob.w/2; oR=ob.x+ob.w/2; }
+    else if (ob.type==='swarm') { oT=ob.y-38;          oB=ob.y+38;     oL=ob.x-42;     oR=ob.x+42; }
+    else continue;
+
+    if (pR > oL && pL < oR && pB > oT && pT < oB) { hitPlayer(i); break; }
+  }
+  if (nearMissTimer > 0) nearMissTimer--;
+}
+
+function flashNearMiss() {
+  nearMissEl.style.opacity = '1';
+  setTimeout(() => { nearMissEl.style.opacity = '0'; }, 500);
+}
+
+// ── Hit / death ───────────────────────────────────────────────
+function hitPlayer(obsIdx) {
+  lives--;
+  flashAlpha = 0.78; doShake(20);
+  spawnParticles(P.x, P.y - 26, 24, '#cc0000');
+  flickerFrames = 42; invincibleFrames = 65;
+  triggerWhisper();
+  if (obsIdx >= 0) obstacles.splice(obsIdx, 1);
+  if (lives <= 0) { triggerGameOver(); return; }
+  livesEl.textContent = '♦'.repeat(Math.max(0, lives));
+}
+
+function triggerGameOver() {
+  running = false; gameOver = true; doShake(38);
+  if (score > highScore) { highScore = score; localStorage.setItem('vr_hi', score); }
+  setTimeout(() => {
+    document.getElementById('go-score').textContent = score;
+    document.getElementById('go-record').textContent = `RECORD: ${highScore}`;
+    document.getElementById('go-msg').textContent = DEATH_MSGS[Math.floor(Math.random()*DEATH_MSGS.length)];
+    document.getElementById('gameover-screen').classList.add('active');
+    hudEl.style.display = 'none';
+    document.getElementById('settings-toggle').style.display = 'none';
+  }, 700);
+}
+
+// ── Player movement ───────────────────────────────────────────
+function updatePlayer() {
+  if (P.jumping) {
+    P.vy += 0.58; P.y += P.vy;
+    if (P.y >= P.groundY) { P.y = P.groundY; P.jumping = false; P.vy = 0; spawnParticles(P.x, P.groundY, 5, '#2a0000'); }
+  }
+  if (P.sliding) { P.slideFrames--; if (P.slideFrames <= 0) P.sliding = false; }
+  P.x += (lanes[P.lane] - P.x) * 0.17;
+  if (invincibleFrames > 0) invincibleFrames--;
+}
+
+function doJump()  { if (!P.jumping && !P.sliding) { P.jumping = true; P.vy = -16; } }
+function doSlide() { if (!P.jumping) { P.sliding = true; P.slideFrames = 42; } }
+function moveLane(d) { const n = P.lane + d; if (n >= 0 && n < 3) P.lane = n; }
+
+// ── Input ─────────────────────────────────────────────────────
+const heldKeys = {};
+document.addEventListener('keydown', e => {
+  if (heldKeys[e.code]) return;
+  heldKeys[e.code] = true;
+  // Start from title
+  if (!running && !gameOver) { if (e.code === 'Enter' || e.code === 'Space') { startGame(); e.preventDefault(); } return; }
+  // Pause toggle
+  if (e.code === 'KeyP') { togglePause(); e.preventDefault(); return; }
+  // ESC → menu
+  if (e.code === 'Escape') { if (running || gameOver) goToMenu(); e.preventDefault(); return; }
+  if (paused) return;
+  if (e.code === 'ArrowLeft'  || e.code === 'KeyA') moveLane(-1);
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') moveLane(1);
+  if (e.code === 'ArrowUp'    || e.code === 'Space') doJump();
+  if (e.code === 'ArrowDown') doSlide();
+  e.preventDefault();
+});
+document.addEventListener('keyup', e => { delete heldKeys[e.code]; });
+
+// Touch controls
+let touchX0 = 0, touchY0 = 0;
+canvas.addEventListener('touchstart', e => { e.preventDefault(); touchX0 = e.touches[0].clientX; touchY0 = e.touches[0].clientY; }, { passive: false });
+canvas.addEventListener('touchend', e => {
+  if (!running || paused) return;
+  const dx = e.changedTouches[0].clientX - touchX0;
+  const dy = e.changedTouches[0].clientY - touchY0;
+  if (Math.abs(dx) > Math.abs(dy)) { if (Math.abs(dx) > 22) moveLane(dx > 0 ? 1 : -1); }
+  else { if (dy < -22) doJump(); else if (dy > 22) doSlide(); }
+}, { passive: false });
+
+// ── Pause ─────────────────────────────────────────────────────
+function togglePause() {
+  if (!running) return;
+  paused = !paused;
+  pauseEl.classList.toggle('active', paused);
+}
+
+// ── Main loop ─────────────────────────────────────────────────
+let lastTimestamp = 0;
+function gameLoop(ts) {
+  requestAnimationFrame(gameLoop);
+  if (!running) return;
+  if (paused) {
+    // Still redraw background while paused for the pause overlay
+    ctx.save();
+    drawBG(); drawFog(); drawShadows(); drawObstacles(); drawPlayer(); drawParticles(); drawPost();
+    ctx.restore();
+    return;
+  }
+
+  const preset = DIFF_PRESETS[CFG.diff];
+  frame++;
+
+  // Speed progression
+  if (frame % preset.accelRate === 0 && speed < 13.5) speed = Math.min(speed + 0.24, 13.5);
+
+  // Screen shake
+  ctx.save();
+  if (shakeFrames > 0) {
+    shakeFrames--;
+    ctx.translate(shakeX * (shakeFrames/14), shakeY * (shakeFrames/14));
+  }
+
+  drawBG();
+  drawFog();
+  drawShadows();
+  drawObstacles();
+  drawPlayer();
+  drawParticles();
+  drawPost();
+  ctx.restore();
+
+  // Spawn obstacles
+  const interval = Math.max(preset.spawnBase * 0.38, preset.spawnBase - score * 0.22);
+  if (frame - lastObsFrame > interval) { spawnObstacle(); lastObsFrame = frame; }
+
+  // Cull off-screen obstacles
+  obstacles = obstacles.filter(o => o.y < H + 130);
+
+  // Shadows
+  if (frame - lastShadowFrame > 170 + Math.random()*320) { spawnShadow(); lastShadowFrame = frame; }
+
+  // Random whisper
+  if (CFG.whisp && Math.random() < 0.00085 * (1 + score/120)) triggerWhisper();
+
+  // Vignette darkens at higher speed
+  vigMod = Math.min((speed - preset.initSpeed) / 10, 1);
+
+  updatePlayer();
+  checkCollisions();
+  drawHeartbeat();
+
+  // HUD update
+  score++;
+  scoreEl.textContent = score;
+  speedRowEl.textContent = `SPEED ${speed.toFixed(1)}×`;
+  speedBarEl.style.width = (Math.min(speed/13.5, 1)*100).toFixed(1) + '%';
+}
+
+// ── Start / reset ─────────────────────────────────────────────
+function startGame() {
+  closeSettings();
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  pauseEl.classList.remove('active');
+
+  const preset = DIFF_PRESETS[CFG.diff];
+  score = 0; lives = 3; speed = preset.initSpeed; frame = 0;
+  flashAlpha = 0; vigMod = 0; nearMissTimer = 0; nearMissCount = 0;
+  obstacles = []; particles = []; shadows = [];
+  P.lane = 1; P.x = lanes[1]; P.y = P.groundY;
+  P.jumping = false; P.sliding = false; P.vy = 0;
+  flickerFrames = 0; invincibleFrames = 0;
+  lastObsFrame = 0; lastShadowFrame = 0;
+  gameOver = false; paused = false; running = true;
+
+  scoreEl.textContent = '0';
+  livesEl.textContent = '♦♦♦';
+  hiEl.textContent = `BEST: ${highScore}`;
+  speedRowEl.textContent = `SPEED ${speed.toFixed(1)}×`;
+  speedBarEl.style.width = '22%';
+
+  hudEl.style.display = 'block';
+  document.getElementById('settings-toggle').style.display = 'flex';
+}
+
+function goToMenu() {
+  running = false; gameOver = false; paused = false;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('start-screen').classList.add('active');
+  pauseEl.classList.remove('active');
+  hudEl.style.display = 'none';
+  document.getElementById('settings-toggle').style.display = 'none';
+  closeSettings();
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+resize();
+initFog();
+hiEl.textContent = `BEST: ${highScore}`;
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
