@@ -10,9 +10,6 @@ A psychological horror endless runner — browser-based, zero dependencies, one 
 
 Just open `index.html` in any modern browser. No install, no server, no dependencies.
 
-Or host it for free: **GitHub Pages → Settings → Pages → Source: main branch, root `/`**
-Your game will be live at `https://yourusername.github.io/void-runner/`
-
 ## Controls
 
 | Input | Action |
