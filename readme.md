@@ -4,7 +4,7 @@
 
 A psychological horror endless runner — browser-based, zero dependencies, one file.
 
-![preview](preview.png)
+![preview](img.)
 
 ## Play
 
