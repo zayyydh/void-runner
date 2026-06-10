@@ -8,7 +8,7 @@ A psychological horror endless runner — browser-based, zero dependencies, one 
 
 ## Play
 
-Just open `index.html` in any modern browser. No install, no server, no dependencies.
+Just open `index.html.HTML` in any modern browser. No install, no server, no dependencies.
 
 ## Controls
 
